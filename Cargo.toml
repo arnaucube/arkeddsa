@@ -5,25 +5,25 @@ rust-version = "1.75.0"
 version = "0.1.0"
 
 [dependencies]
-ark-crypto-primitives = {version = "^0.4.0", default-features = false, features = ["sponge", "crh", "r1cs"]}
-ark-ec = "^0.4.0"
-ark-ed-on-bn254 = {version = "0.4.0"}
-ark-ff = "^0.4.0"
-ark-serialize = {version = "^0.4.0", default-features = false}
-ark-std = "^0.4.0"
+ark-crypto-primitives = {version = "^0.5.0", default-features = false, features = ["sponge", "crh", "r1cs"]}
+ark-ec = "^0.5.0"
+ark-ed-on-bn254 = {version = "0.5.0"}
+ark-ff = "^0.5.0"
+ark-serialize = {version = "^0.5.0", default-features = false}
+ark-std = "^0.5.0"
 digest = "0.10"
 rand = "0.8"
 rand_core = {version = "0.6", default-features = false}
 
 # r1cs deps related under feature="r1cs"
-ark-relations = { version = "^0.4.0", default-features = false, optional = true }
-ark-r1cs-std = { version = "0.4.0", default-features = false, features = ["parallel"], optional = true }
+ark-relations = { version = "^0.5.0", default-features = false, optional = true }
+ark-r1cs-std = { version = "0.5.0", default-features = false, features = ["parallel"], optional = true }
 
 
 [dev-dependencies]
-ark-algebra-test-templates = "0.4.2"
-ark-ed-on-bls12-381 = {version = "0.4.0"}
-ark-ed-on-bls12-381-bandersnatch = {version = "0.4.0"}
+ark-algebra-test-templates = "0.5.0"
+ark-ed-on-bls12-381 = {version = "0.5.0"}
+ark-ed-on-bls12-381-bandersnatch = {version = "0.5.0"}
 blake2 = "0.10"
 hex = "0.4.3"
 sha2 = "0.10"

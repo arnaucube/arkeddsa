@@ -54,7 +54,8 @@ pub fn poseidon_config<F: PrimeField>(
 #[cfg(test)]
 mod test {
     use ark_crypto_primitives::sponge::Absorb;
-    use ark_ec::twisted_edwards::TECurveConfig;
+    // use ark_ec::twisted_edwards::TECurveConfig;
+    use ark_ec::CurveGroup;
     use ark_ff::PrimeField;
     use digest::Digest;
     use rand_core::OsRng;
@@ -62,14 +63,14 @@ mod test {
     use super::poseidon_config;
     use crate::SigningKey;
 
-    fn run_test<TE: TECurveConfig + Clone, D: Digest>()
+    fn run_test<C: CurveGroup + Clone, D: Digest>()
     where
-        TE::BaseField: Absorb + PrimeField,
+        C::BaseField: Absorb + PrimeField,
     {
-        let poseidon = poseidon_config::<TE::BaseField>(4, 8, 55);
-        let signing_key = SigningKey::<TE>::generate::<D>(&mut OsRng).unwrap();
+        let poseidon = poseidon_config::<C::BaseField>(4, 8, 55);
+        let signing_key = SigningKey::<C>::generate::<D>(&mut OsRng).unwrap();
         let message_raw = b"xxx yyy <<< zzz >>> bunny";
-        let message = TE::BaseField::from_le_bytes_mod_order(message_raw);
+        let message = C::BaseField::from_le_bytes_mod_order(message_raw);
         let signature = signing_key.sign::<D>(&poseidon, &message).unwrap();
         let public_key = signing_key.public_key();
         public_key.verify(&poseidon, &message, &signature).unwrap();
@@ -77,10 +78,10 @@ mod test {
 
     #[test]
     fn test_eddsa() {
-        run_test::<ark_ed_on_bn254::EdwardsConfig, sha2::Sha512>();
-        run_test::<ark_ed_on_bn254::EdwardsConfig, blake2::Blake2b512>();
-        run_test::<crate::ed_on_bn254_twist::EdwardsConfig, sha2::Sha512>();
-        run_test::<ark_ed_on_bls12_381::EdwardsConfig, sha2::Sha512>();
-        run_test::<ark_ed_on_bls12_381_bandersnatch::EdwardsConfig, sha2::Sha512>();
+        run_test::<ark_ed_on_bn254::EdwardsProjective, sha2::Sha512>();
+        run_test::<ark_ed_on_bn254::EdwardsProjective, blake2::Blake2b512>();
+        run_test::<crate::ed_on_bn254_twist::EdwardsProjective, sha2::Sha512>();
+        run_test::<ark_ed_on_bls12_381::EdwardsProjective, sha2::Sha512>();
+        run_test::<ark_ed_on_bls12_381_bandersnatch::EdwardsProjective, sha2::Sha512>();
     }
 }

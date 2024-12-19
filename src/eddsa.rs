@@ -5,7 +5,7 @@ use ark_crypto_primitives::sponge::{
 };
 use ark_ec::{
     twisted_edwards::{Affine, TECurveConfig},
-    AffineRepr,
+    AffineRepr, CurveGroup,
 };
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -44,11 +44,11 @@ impl SecretKey {
 }
 
 /// `PublicKey` is EdDSA signature verification key
-#[derive(Copy, Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
-pub struct PublicKey<TE: TECurveConfig>(Affine<TE>);
+#[derive(Copy, Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
+pub struct PublicKey<C: CurveGroup>(pub C::Affine);
 
-impl<TE: TECurveConfig> PublicKey<TE> {
-    pub fn xy(&self) -> Result<(&TE::BaseField, &TE::BaseField), Error> {
+impl<C: CurveGroup> PublicKey<C> {
+    pub fn xy(&self) -> Result<(C::BaseField, C::BaseField), Error> {
         self.as_ref().xy().ok_or(Error::Coordinates)
     }
 
@@ -59,41 +59,51 @@ impl<TE: TECurveConfig> PublicKey<TE> {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Box<dyn ark_std::error::Error>> {
-        let point = Affine::<TE>::deserialize_compressed(bytes)?;
+        let point = C::Affine::deserialize_compressed(bytes)?;
         Ok(Self(point))
     }
 }
 
-impl<TE: TECurveConfig> From<Affine<TE>> for PublicKey<TE> {
-    fn from(affine: Affine<TE>) -> Self {
-        Self(affine)
-    }
-}
+// impl<C: CurveGroup> From<C::Affine> for PublicKey<C> {
+//     fn from(affine: C::Affine) -> Self {
+//         Self(affine)
+//     }
+// }
+// impl<C: CurveGroup> From<C> for PublicKey<C> {
+//     fn from(proj: C) -> Self {
+//         PublicKey(proj.into_affine())
+//     }
+// }
+// impl<C: CurveGroup> From<C::Affine> for PublicKey<C> {
+//     fn from(affine: C::Affine) -> Self {
+//         PublicKey(affine)
+//     }
+// }
 
-impl<TE: TECurveConfig> AsRef<Affine<TE>> for PublicKey<TE> {
-    fn as_ref(&self) -> &Affine<TE> {
+impl<C: CurveGroup> AsRef<C::Affine> for PublicKey<C> {
+    fn as_ref(&self) -> &C::Affine {
         &self.0
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 /// `SigningKey` produces EdDSA signatures for given message
-pub struct SigningKey<TE: TECurveConfig> {
+pub struct SigningKey<C: CurveGroup> {
     secret_key: SecretKey,
-    public_key: PublicKey<TE>,
+    public_key: PublicKey<C>,
 }
 
-impl<TE: TECurveConfig + Clone> SigningKey<TE>
+impl<C: CurveGroup + Clone> SigningKey<C>
 where
-    TE::BaseField: PrimeField + Absorb,
+    C::BaseField: PrimeField + Absorb,
 {
     pub fn new<D: Digest>(secret_key: &SecretKey) -> Result<Self, Error> {
         (<D as OutputSizeUser>::output_size() == 64)
             .then_some(())
             .ok_or(Error::BadDigestOutput)?;
 
-        let (x, _) = secret_key.expand::<TE::ScalarField, D>();
-        let public_key: Affine<TE> = (Affine::<TE>::generator() * x).into();
+        let (x, _) = secret_key.expand::<C::ScalarField, D>();
+        let public_key: C::Affine = (C::Affine::generator() * x).into();
         let signing_key = Self {
             secret_key: *secret_key,
             public_key: PublicKey(public_key),
@@ -117,16 +127,16 @@ where
         Self::new::<D>(&secret_key)
     }
 
-    pub fn public_key(&self) -> &PublicKey<TE> {
+    pub fn public_key(&self) -> &PublicKey<C> {
         &self.public_key
     }
 
     pub fn sign<D: Digest>(
         &self,
-        poseidon: &PoseidonConfig<TE::BaseField>,
-        message: &TE::BaseField,
-    ) -> Result<Signature<TE>, Error> {
-        let (x, prefix) = self.secret_key.expand::<TE::ScalarField, D>();
+        poseidon: &PoseidonConfig<C::BaseField>,
+        message: &C::BaseField,
+    ) -> Result<Signature<C>, Error> {
+        let (x, prefix) = self.secret_key.expand::<C::ScalarField, D>();
 
         let mut h = D::new();
         h.update(prefix);
@@ -135,23 +145,23 @@ where
         msg32[..msg_bytes.len()].copy_from_slice(&msg_bytes[..]);
         h.update(msg32);
 
-        let r: TE::ScalarField = crate::from_digest(h);
-        let sig_r: Affine<TE> = (Affine::<TE>::generator() * r).into();
+        let r: C::ScalarField = crate::from_digest(h);
+        let sig_r: C::Affine = (C::Affine::generator() * r).into();
 
         let mut poseidon = PoseidonSponge::new(poseidon);
 
         let (sig_r_x, sig_r_y) = sig_r.xy().ok_or(Error::Coordinates)?;
-        poseidon.absorb(sig_r_x);
-        poseidon.absorb(sig_r_y);
+        poseidon.absorb(&sig_r_x);
+        poseidon.absorb(&sig_r_y);
         let (pk_x, pk_y) = self.public_key.0.xy().ok_or(Error::Coordinates)?;
-        poseidon.absorb(pk_x);
-        poseidon.absorb(pk_y);
+        poseidon.absorb(&pk_x);
+        poseidon.absorb(&pk_y);
         poseidon.absorb(message);
 
         // use poseidon over Fq, so that it can be done too in-circuit
-        let k = poseidon.squeeze_field_elements::<TE::BaseField>(1);
+        let k = poseidon.squeeze_field_elements::<C::BaseField>(1);
         let k = k.first().ok_or(Error::BadDigestOutput)?;
-        let k = TE::ScalarField::from_le_bytes_mod_order(&k.into_bigint().to_bytes_le());
+        let k = C::ScalarField::from_le_bytes_mod_order(&k.into_bigint().to_bytes_le());
 
         let sig_s = (x * k) + r;
 
@@ -159,43 +169,43 @@ where
     }
 }
 
-impl<TE: TECurveConfig> SigningKey<TE> {
-    pub fn shared_key<D: Digest>(&self, recipient: &PublicKey<TE>) -> [u8; 32] {
-        let (x, _) = self.secret_key.expand::<TE::ScalarField, D>();
-        let shared_key: Affine<TE> = (*recipient.as_ref() * x).into();
+impl<C: CurveGroup> SigningKey<C> {
+    pub fn shared_key<D: Digest>(&self, recipient: &PublicKey<C>) -> [u8; 32] {
+        let (x, _) = self.secret_key.expand::<C::ScalarField, D>();
+        let shared_key: C::Affine = (recipient.0 * x).into();
         let mut data = Vec::new();
         shared_key.serialize_compressed(&mut data).unwrap();
         data[00..32].try_into().unwrap()
     }
 }
 
-impl<TE: TECurveConfig + Clone> PublicKey<TE>
+impl<C: CurveGroup + Clone> PublicKey<C>
 where
-    TE::BaseField: PrimeField + Absorb,
+    C::BaseField: PrimeField + Absorb,
 {
     pub fn verify(
         &self,
-        poseidon: &PoseidonConfig<TE::BaseField>,
-        message: &TE::BaseField,
-        signature: &Signature<TE>,
+        poseidon: &PoseidonConfig<C::BaseField>,
+        message: &C::BaseField,
+        signature: &Signature<C>,
     ) -> Result<(), Error> {
         let mut poseidon = PoseidonSponge::new(poseidon);
 
         let (sig_r_x, sig_r_y) = signature.r().xy().ok_or(Error::Coordinates)?;
-        poseidon.absorb(sig_r_x);
-        poseidon.absorb(sig_r_y);
+        poseidon.absorb(&sig_r_x);
+        poseidon.absorb(&sig_r_y);
         let (pk_x, pk_y) = self.0.xy().ok_or(Error::Coordinates)?;
-        poseidon.absorb(pk_x);
-        poseidon.absorb(pk_y);
+        poseidon.absorb(&pk_x);
+        poseidon.absorb(&pk_y);
         poseidon.absorb(message);
 
         // use poseidon over Fq, so that it can be done too in-circuit
-        let k = poseidon.squeeze_field_elements::<TE::BaseField>(1);
+        let k = poseidon.squeeze_field_elements::<C::BaseField>(1);
         let k = k.first().ok_or(Error::BadDigestOutput)?;
 
         let kx_b = self.0.mul_bigint(k.into_bigint());
-        let s_b = Affine::<TE>::generator() * signature.s();
-        let r_rec: Affine<TE> = (s_b - kx_b).into();
+        let s_b = C::Affine::generator() * signature.s();
+        let r_rec: C::Affine = (s_b - kx_b).into();
 
         (signature.r() == &r_rec).then_some(()).ok_or(Error::Verify)
     }
