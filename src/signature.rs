@@ -1,8 +1,5 @@
-use ark_ec::twisted_edwards::Affine;
-use ark_ec::twisted_edwards::TECurveConfig;
-use ark_ec::CurveGroup;
-use ark_serialize::CanonicalDeserialize;
-use ark_serialize::CanonicalSerialize;
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 /// `SignatureComponents` contains the realized parts of a signature
 #[derive(Copy, Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
@@ -12,7 +9,6 @@ pub struct Signature<C: CurveGroup + Clone> {
 }
 
 impl<C: CurveGroup + Clone> Signature<C> {
-    /*
     /// Serializes the signature components to bytes as uncompressed.
     /// Expect output size to be `size_of(C::BaseField) * 2 + size_of(C::ScalarField)`
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -25,8 +21,8 @@ impl<C: CurveGroup + Clone> Signature<C> {
     /// Checked deserialization of the signature components from bytes.
     /// Expects input size to be `size_of(C::BaseField) * 2 + size_of(C::ScalarField)`
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Box<dyn ark_std::error::Error>> {
-        let point_size = C::Affine::Config::serialized_size(ark_serialize::Compress::No);
-        (bytes.len() == 32 + C::Affine::Config::serialized_size(ark_serialize::Compress::No))
+        let point_size = C::Affine::generator().serialized_size(ark_serialize::Compress::No);
+        (bytes.len() == 32 + point_size)
             .then_some(true)
             .ok_or(ark_serialize::SerializationError::InvalidData)?;
 
@@ -37,7 +33,6 @@ impl<C: CurveGroup + Clone> Signature<C> {
         let s = C::ScalarField::deserialize_uncompressed(&bytes[off1..off2])?;
         Ok(Signature { r, s })
     }
-    */
 
     pub fn new(r: C::Affine, s: C::ScalarField) -> Self {
         Self { r, s }

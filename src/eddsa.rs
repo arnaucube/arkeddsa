@@ -4,8 +4,9 @@ use ark_crypto_primitives::sponge::{
     Absorb, CryptographicSponge,
 };
 use ark_ec::{
-    twisted_edwards::{Affine, TECurveConfig},
-    AffineRepr, CurveGroup,
+    // twisted_edwards::{Affine, TECurveConfig},
+    AffineRepr,
+    CurveGroup,
 };
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
